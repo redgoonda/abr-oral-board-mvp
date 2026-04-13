@@ -9,6 +9,7 @@ Web-first MVP scaffold for an ABR oral board practice product.
 - Live oral session screen with a typed runtime-backed session loop
 - Debrief screen driven by generated session output
 - Faculty review screen with transcript audit surface
+- PDF import pipeline that extracts source text, generates editable ABR case drafts, and requires approval before a draft joins the launchable case bank
 - Locked product framing where the AI counterpart is always a radiologist examiner
 - Local mock API layer that can be swapped for a real backend later
 
@@ -39,6 +40,16 @@ npm run dev
 ```
 
 Open `http://localhost:5173`.
+
+## PDF import workflow
+
+1. Click **Import source PDF** in the sidebar.
+2. Upload an ABR-style source PDF.
+3. Review the generated draft cases in **PDF imports**.
+4. Edit findings, differential, management, and teaching points as needed.
+5. Approve a draft to move it into the launchable case library.
+
+The parser is intentionally conservative. Imported content is treated as a draft for faculty review, not as an automatically trusted live case.
 
 ## Build and lint
 

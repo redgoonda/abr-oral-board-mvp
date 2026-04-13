@@ -1,4 +1,4 @@
-export type ScreenKey = 'dashboard' | 'library' | 'session' | 'debrief' | 'faculty'
+export type ScreenKey = 'dashboard' | 'library' | 'imports' | 'session' | 'debrief' | 'faculty'
 
 export type Difficulty = 'Junior' | 'Standard' | 'Advanced'
 export type SessionStatus = 'idle' | 'in_progress' | 'completed'
@@ -35,6 +35,44 @@ export interface CaseSummary {
   examinerCues: ExaminerCue[]
   sampleAnswerFrame: string[]
   practicalNotes?: string[]
+}
+
+export interface ImportedDocumentSummary {
+  id: string
+  fileName: string
+  importedAt: string
+  pageCount: number
+  parserVersion: string
+  sourceLabel: string
+}
+
+export interface ImportedCaseDraft {
+  id: string
+  documentId: string
+  status: 'draft' | 'approved'
+  sourceTitle: string
+  title: string
+  category: string
+  subspecialty: string
+  modality: string
+  clinicalContext: string
+  objective: string
+  findings: string[]
+  differential: string[]
+  management: string[]
+  teachingPoint: string
+  overallDiscussion: string
+  candidateTasks: string[]
+  sourceExcerpt: string
+  sourcePages: number[]
+  reviewNotes: string
+  confidence: number
+  normalizedCase?: CaseSummary
+}
+
+export interface ImportResult {
+  document: ImportedDocumentSummary
+  drafts: ImportedCaseDraft[]
 }
 
 export interface TranscriptTurn {

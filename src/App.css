@@ -14,7 +14,8 @@ body {
 }
 
 button,
-textarea {
+textarea,
+input {
   font: inherit;
 }
 
@@ -264,6 +265,75 @@ button:disabled {
   gap: 10px;
 }
 
+.stack-gap {
+  display: grid;
+  gap: 12px;
+}
+
+.file-input-btn {
+  position: relative;
+  text-align: center;
+  overflow: hidden;
+}
+
+.file-input-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.imports-layout {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 0.72fr 1.28fr;
+}
+
+.draft-list {
+  display: grid;
+  gap: 12px;
+}
+
+.draft-item {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.7);
+  color: #dce8f5;
+  padding: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.editor-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field-block {
+  display: grid;
+  gap: 8px;
+}
+
+.field-block:nth-child(5),
+.field-block:nth-child(6),
+.field-block:nth-child(7),
+.field-block:nth-child(8),
+.field-block:nth-child(9),
+.field-block:nth-child(10),
+.field-block:nth-child(11),
+.field-block:nth-child(12) {
+  grid-column: 1 / -1;
+}
+
+.single-line-input {
+  min-height: 48px;
+}
+
 .trend-card {
   display: flex;
   justify-content: space-between;
@@ -395,7 +465,9 @@ button:disabled {
   .shell,
   .live-layout,
   .screen-grid.two-up,
-  .topbar {
+  .topbar,
+  .imports-layout,
+  .editor-grid {
     grid-template-columns: 1fr;
     display: grid;
   }

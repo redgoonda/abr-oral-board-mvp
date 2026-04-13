@@ -33,8 +33,8 @@ function createTurn(speaker: TranscriptTurn['speaker'], phase: SessionPhase, tex
   }
 }
 
-function getCase(caseId: string): CaseSummary {
-  const caseItem = seededCases.find((item) => item.id === caseId)
+function getCase(caseId: string, cases: CaseSummary[] = seededCases): CaseSummary {
+  const caseItem = cases.find((item) => item.id === caseId)
   if (!caseItem) throw new Error(`Case not found: ${caseId}`)
   return caseItem
 }
@@ -137,8 +137,8 @@ function buildExaminerPrompt(caseItem: CaseSummary, phase: Exclude<SessionPhase,
   return cue && learnerCount > 0 ? `${prompt} ${cue.text}` : prompt
 }
 
-export function startMockSession(request: SessionStartRequest): SessionEnvelope {
-  const caseItem = getCase(request.caseId)
+export function startMockSession(request: SessionStartRequest, cases: CaseSummary[] = seededCases): SessionEnvelope {
+  const caseItem = getCase(request.caseId, cases)
   const startedAt = nowIso()
   const session: OralSession = {
     id: crypto.randomUUID(),
