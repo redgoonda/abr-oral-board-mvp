@@ -21,6 +21,12 @@ export interface CaseSummary {
   examinerOpening: string
   hiddenDiagnosis: string
   keyTeachingPoint: string
+  candidateTasks: string[]
+  observationChecklist: string[]
+  synthesisChecklist: string[]
+  managementChecklist: string[]
+  examinerPrompts: Partial<Record<Exclude<SessionPhase, 'debrief'>, string>>
+  practicalNotes?: string[]
 }
 
 export interface TranscriptTurn {

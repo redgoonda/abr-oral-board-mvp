@@ -257,6 +257,12 @@ function LiveSession({ activeCase, sessionEnvelope, draftResponse, onDraftChange
           <p>{activeCase.vignette}</p>
         </div>
         <div className="detail-block">
+          <span className="meta-label">Candidate tasks</span>
+          <ul className="clean-list compact">
+            {activeCase.candidateTasks.map((task) => <li key={task}>{task}</li>)}
+          </ul>
+        </div>
+        <div className="detail-block">
           <span className="meta-label">Revealed facts</span>
           <ul className="clean-list compact">
             {(sessionEnvelope?.session.revealedFacts ?? activeCase.findings.slice(0, 1)).map((finding) => <li key={finding}>{finding}</li>)}
@@ -288,6 +294,10 @@ function LiveSession({ activeCase, sessionEnvelope, draftResponse, onDraftChange
             <div>
               <span className="meta-label">Teaching point</span>
               <p>{activeCase.keyTeachingPoint}</p>
+            </div>
+            <div>
+              <span className="meta-label">Rubric shape</span>
+              <p>Observation → synthesis → management</p>
             </div>
           </div>
           <div className="viewer-overlay">
@@ -398,7 +408,7 @@ function FacultyReview({ activeCase, sessionEnvelope }: { activeCase: CaseSummar
         </div>
         <div className="detail-block">
           <span className="meta-label">Calibration prompt</span>
-          <p>Did the learner clearly name the leading diagnosis, defend it briefly, and close with an explicit escalation recommendation?</p>
+          <p>Did the learner demonstrate observation, synthesis, and management in a concise radiologist-style discussion?</p>
         </div>
       </div>
 

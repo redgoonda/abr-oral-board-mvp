@@ -3,7 +3,7 @@ import { defaultDebrief, seededCases } from './mockData'
 
 const phaseOrder: SessionPhase[] = ['opening', 'interpretation', 'differential', 'management', 'closing', 'debrief']
 
-const promptByPhase: Record<Exclude<SessionPhase, 'debrief'>, string> = {
+const fallbackPromptByPhase: Record<Exclude<SessionPhase, 'debrief'>, string> = {
   opening: 'Good start. Now anchor your interpretation in the key imaging abnormality.',
   interpretation: 'Tighten it up. Give me your ranked differential and tell me why the top choice wins.',
   differential: 'Now commit to management. Who are you calling and what is the time-sensitive risk?',
@@ -36,29 +36,63 @@ function nextPhase(current: SessionPhase): SessionPhase {
   return phaseOrder[Math.min(currentIndex + 1, phaseOrder.length - 1)]
 }
 
+function rubricHits(caseItem: CaseSummary, transcript: TranscriptTurn[]) {
+  const learnerText = transcript
+    .filter((turn) => turn.speaker === 'Learner')
+    .map((turn) => turn.text.toLowerCase())
+    .join(' ')
+
+  const hitCount = (items: string[]) => items.filter((item) => learnerText.includes(item.toLowerCase().split(/[(),]/)[0])).length
+
+  return {
+    observation: hitCount(caseItem.observationChecklist),
+    synthesis: hitCount(caseItem.synthesisChecklist),
+    management: hitCount(caseItem.managementChecklist),
+  }
+}
+
 function buildDebrief(caseItem: CaseSummary, transcript: TranscriptTurn[]): SessionDebrief {
-  const learnerTurns = transcript.filter((turn) => turn.speaker === 'Learner')
-  const mentionedManagement = learnerTurns.some((turn) => /urgent|call|activate|consult|escalat/i.test(turn.text))
-  const mentionedDifferential = learnerTurns.some((turn) => /differential|consider|versus|likely|most likely/i.test(turn.text))
-  const overallScore = 78 + (mentionedManagement ? 4 : 0) + (mentionedDifferential ? 2 : 0)
+  const hits = rubricHits(caseItem, transcript)
+  const observationScore = Math.min(5, 3.4 + hits.observation * 0.4)
+  const synthesisScore = Math.min(5, 3.2 + hits.synthesis * 0.45)
+  const managementScore = Math.min(5, 3.2 + hits.management * 0.5)
+  const communicationScore = 4.1
+  const overallScore = Math.round(((observationScore + synthesisScore + managementScore + communicationScore) / 20) * 100)
 
   return {
     ...defaultDebrief,
-    disposition: overallScore >= 84 ? 'Pass' : 'Borderline',
-    summary: `Case ${caseItem.code}: ${caseItem.keyTeachingPoint} ${mentionedManagement ? 'You were decisive about escalation.' : 'Push harder on explicit escalation language.'}`,
-    strongAnswer: `Leading diagnosis: ${caseItem.hiddenDiagnosis} ${caseItem.management[0]}. ${caseItem.management[1]}.`,
+    disposition: overallScore >= 84 ? 'Pass' : overallScore >= 76 ? 'Borderline' : 'Needs work',
+    summary: `Case ${caseItem.code}: ${caseItem.keyTeachingPoint} Observation, synthesis, and management were scored using the MVP oral-board rubric shape.`,
+    strongAnswer: `Most likely diagnosis: ${caseItem.hiddenDiagnosis} Key recommendation: ${caseItem.management[0]}; ${caseItem.management[1].toLowerCase()}.`,
     overallScore,
-    scoreBreakdown: defaultDebrief.scoreBreakdown.map((item) => {
-      if (item.label === 'Differential' && mentionedDifferential) return { ...item, score: 4.2, note: 'Ranked alternatives more explicitly.' }
-      if (item.label === 'Management' && mentionedManagement) return { ...item, score: 4.8, note: 'Named the escalation path clearly.' }
-      return item
-    }),
+    scoreBreakdown: [
+      {
+        label: 'Observation',
+        score: observationScore,
+        note: `Hit ${hits.observation}/${caseItem.observationChecklist.length} core observation elements.`,
+      },
+      {
+        label: 'Synthesis',
+        score: synthesisScore,
+        note: `Hit ${hits.synthesis}/${caseItem.synthesisChecklist.length} synthesis elements.`,
+      },
+      {
+        label: 'Management',
+        score: managementScore,
+        note: `Hit ${hits.management}/${caseItem.managementChecklist.length} management elements.`,
+      },
+      {
+        label: 'Communication',
+        score: communicationScore,
+        note: 'Maintained concise oral-board style communication.',
+      },
+    ],
     nextSteps: [
       `Repeat ${caseItem.subspecialty.toLowerCase()} with a fresh case.`,
       'State your top diagnosis in the first sentence.',
-      'End with one explicit action recommendation.',
+      'Close with one explicit next-step recommendation.',
     ],
-    criticalMisses: mentionedManagement ? 0 : 1,
+    criticalMisses: hits.management > 0 ? 0 : 1,
   }
 }
 
@@ -109,7 +143,8 @@ export function submitMockTurn(current: SessionEnvelope, request: SubmitTurnRequ
     }
   }
 
-  const examinerTurn = createTurn('Examiner', next, promptByPhase[next],)
+  const examinerPrompt = current.caseItem.examinerPrompts[next] ?? fallbackPromptByPhase[next]
+  const examinerTurn = createTurn('Examiner', next, examinerPrompt)
 
   return {
     caseItem: current.caseItem,

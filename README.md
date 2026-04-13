@@ -15,6 +15,7 @@ Web-first MVP scaffold for an ABR oral board practice product.
 ## Runtime foundations added
 
 - Typed domain contracts for cases, sessions, transcript turns, phases, and debriefs
+- Seeded case structure shaped around ABR-published oral-exam framing, especially observation, synthesis, and management
 - Mock backend/runtime path for:
   - listing cases
   - creating a session
@@ -47,6 +48,8 @@ npm run lint
 ```
 
 ## Notes
+
+The seeded cases and examiner flow are now loosely grounded in publicly shared ABR oral-exam guidance about realistic case depth, standardized examiner prompts, and rubric-based scoring. This MVP does **not** attempt to reproduce exam content verbatim. It uses that public guidance to shape practical educational case structure.
 
 This is still an MVP, but it now has a practical local runtime seam for the next pass:
 
