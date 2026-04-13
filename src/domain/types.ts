@@ -5,6 +5,11 @@ export type SessionStatus = 'idle' | 'in_progress' | 'completed'
 export type SessionPhase = 'opening' | 'interpretation' | 'differential' | 'management' | 'closing' | 'debrief'
 export type Speaker = 'Examiner' | 'Learner' | 'System'
 
+export interface ExaminerCue {
+  when: 'opening' | 'after-interpretation' | 'after-differential' | 'after-management'
+  text: string
+}
+
 export interface CaseSummary {
   id: string
   code: string
@@ -15,6 +20,7 @@ export interface CaseSummary {
   duration: string
   objective: string
   vignette: string
+  history: string
   findings: string[]
   differential: string[]
   management: string[]
@@ -26,6 +32,8 @@ export interface CaseSummary {
   synthesisChecklist: string[]
   managementChecklist: string[]
   examinerPrompts: Partial<Record<Exclude<SessionPhase, 'debrief'>, string>>
+  examinerCues: ExaminerCue[]
+  sampleAnswerFrame: string[]
   practicalNotes?: string[]
 }
 
@@ -64,6 +72,9 @@ export interface OralSession {
   revealedFacts: string[]
   transcript: TranscriptTurn[]
   draftResponse: string
+  turnCount: number
+  examinerConsistencyNote: string
+  phaseGuidance: string
   debrief?: SessionDebrief
 }
 

@@ -4,14 +4,14 @@ import type { CaseSummary, ScreenKey, SessionEnvelope } from './domain/types'
 import { createSession, getActiveSession, listCases, resetSession, submitTurn } from './runtime/api'
 
 const weakAreas = [
-  'Chest emergency imaging',
-  'Prioritizing differentials under time pressure',
-  'MSK tumor staging recommendations',
+  'Urgent chest communication',
+  'Ranked differentials under pressure',
+  'Board-style report closing statements',
 ]
 
 const assignedCases = [
-  { title: 'Weekend stroke callback set', due: 'Due tomorrow 07:00', count: 3 },
-  { title: 'GI emergency board drill', due: 'Due Apr 16', count: 2 },
+  { title: 'ABR-style emergency drill', due: 'Due tomorrow 07:00', count: 3 },
+  { title: 'Breast and MSK staging set', due: 'Due Apr 16', count: 2 },
 ]
 
 function App() {
@@ -99,7 +99,7 @@ function App() {
         <div>
           <p className="eyebrow">ABR Oral Board AI</p>
           <h1>Radiologist examiner training, not chatbot cosplay.</h1>
-          <p className="muted">Now backed by a typed session runtime, mock API layer, and live text-first simulation loop.</p>
+          <p className="muted">Expanded with ABR-style case cadence, stricter examiner behavior, and a stronger text-first oral flow.</p>
         </div>
 
         <nav className="nav">
@@ -120,13 +120,14 @@ function App() {
           <div className="status-line"><span className="status-dot" />Runtime {sessionEnvelope ? sessionEnvelope.session.status.replace('_', ' ') : 'ready'}</div>
           <strong>{sessionEnvelope ? `${sessionEnvelope.session.candidateName} · ${sessionEnvelope.caseItem.code}` : 'No active session'}</strong>
           <p className="muted small-copy">AI role locked: radiologist examiner</p>
+          <p className="muted small-copy">{sessionEnvelope?.session.examinerConsistencyNote ?? 'Examiner flow mirrors ABR-style probing.'}</p>
         </div>
       </aside>
 
       <main className="main">
-        <Header sessionEnvelope={sessionEnvelope} />
+        <Header sessionEnvelope={sessionEnvelope} cases={cases} />
         {error && <div className="error-banner">{error}</div>}
-        {screen === 'dashboard' && <Dashboard activeCase={activeCase} onStart={handleStart} busy={busy} />}
+        {screen === 'dashboard' && <Dashboard activeCase={activeCase} onStart={handleStart} busy={busy} cases={cases} />}
         {screen === 'library' && <CaseLibrary activeCaseId={selectedCaseId} cases={cases} onSelect={setSelectedCaseId} onStart={handleStart} busy={busy} />}
         {screen === 'session' && <LiveSession activeCase={runtimeCase ?? activeCase} sessionEnvelope={sessionEnvelope} draftResponse={draftResponse} onDraftChange={setDraftResponse} onSubmit={handleSubmit} onReset={handleReset} busy={busy} transcriptCount={transcript.length} />}
         {screen === 'debrief' && <Debrief activeCase={runtimeCase ?? activeCase} sessionEnvelope={sessionEnvelope} onRestart={handleReset} />}
@@ -136,28 +137,28 @@ function App() {
   )
 }
 
-function Header({ sessionEnvelope }: { sessionEnvelope: SessionEnvelope | null }) {
+function Header({ sessionEnvelope, cases }: { sessionEnvelope: SessionEnvelope | null; cases: CaseSummary[] }) {
   return (
     <header className="topbar">
       <div>
         <p className="eyebrow">MVP status</p>
-        <h2>{sessionEnvelope ? 'Live oral simulation active' : 'Core learner journey scaffolded'}</h2>
+        <h2>{sessionEnvelope ? 'Live oral simulation active' : 'ABR-style text runtime expanded'}</h2>
       </div>
       <div className="topbar-meta">
         <div>
           <span className="meta-label">Current phase</span>
-          <strong>{sessionEnvelope ? sessionEnvelope.session.phase : 'Phase 2, text-first simulation'}</strong>
+          <strong>{sessionEnvelope ? sessionEnvelope.session.phase : 'ABR-style sequence online'}</strong>
         </div>
         <div>
-          <span className="meta-label">Pilot stance</span>
-          <strong>{sessionEnvelope ? 'Typed local runtime path online' : '3 seeded cases, strict examiner guardrails'}</strong>
+          <span className="meta-label">Case bank</span>
+          <strong>{cases.length} seeded cases</strong>
         </div>
       </div>
     </header>
   )
 }
 
-function Dashboard({ activeCase, onStart, busy }: { activeCase: CaseSummary; onStart: (caseId: string) => Promise<void>; busy: boolean }) {
+function Dashboard({ activeCase, onStart, busy, cases }: { activeCase: CaseSummary; onStart: (caseId: string) => Promise<void>; busy: boolean; cases: CaseSummary[] }) {
   return (
     <section className="screen-grid two-up">
       <div className="panel hero-panel">
@@ -191,11 +192,11 @@ function Dashboard({ activeCase, onStart, busy }: { activeCase: CaseSummary; onS
       </div>
 
       <div className="panel">
-        <p className="eyebrow">Runtime foundations shipped</p>
+        <p className="eyebrow">What changed</p>
         <div className="score-list compact-grid">
-          <div className="detail-block"><strong>Typed contracts</strong><p className="muted">Case, session, transcript, debrief models.</p></div>
-          <div className="detail-block"><strong>Mock API</strong><p className="muted">Async local runtime, ready to swap for real backend.</p></div>
-          <div className="detail-block"><strong>Live session loop</strong><p className="muted">Start, submit turns, progress phases, generate debrief.</p></div>
+          <div className="detail-block"><strong>{cases.length} cases</strong><p className="muted">Broader sample bank across neuro, abdomen, MSK, chest, and breast.</p></div>
+          <div className="detail-block"><strong>Stricter examiner</strong><p className="muted">Probing, role-consistent radiologist flow instead of tutoring drift.</p></div>
+          <div className="detail-block"><strong>ABR-style cadence</strong><p className="muted">Finding, ranked differential, recommendation, closing statement.</p></div>
         </div>
       </div>
     </section>
@@ -206,11 +207,8 @@ function CaseLibrary({ activeCaseId, cases, onSelect, onStart, busy }: { activeC
   return (
     <section className="screen-grid">
       <div className="panel filter-bar">
-        <span className="pill">Neuro</span>
-        <span className="pill">Chest</span>
-        <span className="pill">Abdomen</span>
-        <span className="pill">MSK</span>
-        <span className="pill subtle">Runtime-backed case launch</span>
+        {['Neuro', 'Chest', 'Abdomen', 'MSK', 'Breast'].map((label) => <span key={label} className="pill">{label}</span>)}
+        <span className="pill subtle">ABR-style seeded flow</span>
       </div>
 
       <div className="case-list">
@@ -230,6 +228,10 @@ function CaseLibrary({ activeCaseId, cases, onSelect, onStart, busy }: { activeC
               <span className="pill subtle">{item.duration}</span>
             </div>
             <p className="muted">{item.vignette}</p>
+            <div className="detail-block">
+              <span className="meta-label">Expected oral shape</span>
+              <p>{item.sampleAnswerFrame.join(' → ')}</p>
+            </div>
             <div className="split-actions">
               <button className="secondary-btn" onClick={() => onSelect(item.id)}>Preview setup</button>
               <button className="primary-btn" disabled={busy} onClick={() => void onStart(item.id)}>{busy ? 'Starting...' : 'Launch'}</button>
@@ -253,6 +255,10 @@ function LiveSession({ activeCase, sessionEnvelope, draftResponse, onDraftChange
           <span className="timer">{String(transcriptCount).padStart(2, '0')} turns</span>
         </div>
         <div className="detail-block">
+          <span className="meta-label">History</span>
+          <p>{activeCase.history}</p>
+        </div>
+        <div className="detail-block">
           <span className="meta-label">Candidate vignette</span>
           <p>{activeCase.vignette}</p>
         </div>
@@ -269,24 +275,28 @@ function LiveSession({ activeCase, sessionEnvelope, draftResponse, onDraftChange
           </ul>
         </div>
         <div className="session-controls">
-          <span className="pill">Text-first runtime active</span>
-          <span className="pill subtle">Phase: {sessionEnvelope?.session.phase ?? 'opening'}</span>
+          <span className="pill">Phase: {sessionEnvelope?.session.phase ?? 'opening'}</span>
+          <span className="pill subtle">{sessionEnvelope?.session.phaseGuidance ?? 'Start with the actionable finding.'}</span>
         </div>
       </div>
 
       <div className="panel viewer-panel">
         <div className="viewer-header">
           <div>
-            <p className="eyebrow">Runtime path</p>
-            <h3>Case and session contracts online</h3>
+            <p className="eyebrow">Examiner flow</p>
+            <h3>ABR-style progression</h3>
           </div>
           <div className="pill-row">
-            <span className="pill subtle">Mock API</span>
-            <span className="pill subtle">Swappable backend</span>
+            <span className="pill subtle">Role locked</span>
+            <span className="pill subtle">Radiologist examiner</span>
           </div>
         </div>
         <div className="viewer-canvas">
           <div className="scan-frame runtime-frame">
+            <div>
+              <span className="meta-label">Expected answer frame</span>
+              <p>{activeCase.sampleAnswerFrame.join(' → ')}</p>
+            </div>
             <div>
               <span className="meta-label">Hidden diagnosis</span>
               <p>{activeCase.hiddenDiagnosis}</p>
@@ -294,10 +304,6 @@ function LiveSession({ activeCase, sessionEnvelope, draftResponse, onDraftChange
             <div>
               <span className="meta-label">Teaching point</span>
               <p>{activeCase.keyTeachingPoint}</p>
-            </div>
-            <div>
-              <span className="meta-label">Rubric shape</span>
-              <p>Observation → synthesis → management</p>
             </div>
           </div>
           <div className="viewer-overlay">
@@ -325,7 +331,7 @@ function LiveSession({ activeCase, sessionEnvelope, draftResponse, onDraftChange
         </div>
         <div className="input-card">
           <span className="meta-label">Text submission</span>
-          <textarea className="text-input" value={draftResponse} onChange={(event) => onDraftChange(event.target.value)} placeholder={sessionEnvelope ? 'Enter your board-style response here...' : 'Start a session from the dashboard or library first.'} disabled={!sessionEnvelope || sessionEnvelope.session.status === 'completed' || busy} />
+          <textarea className="text-input" value={draftResponse} onChange={(event) => onDraftChange(event.target.value)} placeholder={sessionEnvelope ? 'Enter a concise oral-board answer here...' : 'Start a session from the dashboard or library first.'} disabled={!sessionEnvelope || sessionEnvelope.session.status === 'completed' || busy} />
           <div className="split-actions">
             <button className="secondary-btn" onClick={() => void onReset()}>Reset practice</button>
             <button className="primary-btn" disabled={!sessionEnvelope || !draftResponse.trim() || busy} onClick={() => void onSubmit()}>{busy ? 'Submitting...' : 'Submit turn'}</button>
@@ -395,20 +401,19 @@ function FacultyReview({ activeCase, sessionEnvelope }: { activeCase: CaseSummar
         <div className="score-row"><span className="meta-label">Session status</span><strong>{sessionEnvelope?.session.status ?? 'idle'}</strong></div>
         <div className="detail-block">
           <span className="meta-label">Governance notes</span>
-          <p>Examiner stays in role, advances through oral-board phases, and generates structured debrief output without tutoring drift.</p>
+          <p>{sessionEnvelope?.session.examinerConsistencyNote ?? 'Examiner stays in role, probes, and avoids tutoring drift.'}</p>
         </div>
       </div>
 
       <div className="panel">
-        <p className="eyebrow">Review controls</p>
-        <div className="split-actions stacked">
-          <button className="secondary-btn">Add faculty note</button>
-          <button className="secondary-btn">Borderline override</button>
-          <button className="primary-btn">Flag AI issue</button>
+        <p className="eyebrow">Calibration prompt</p>
+        <div className="detail-block">
+          <span className="meta-label">Faculty question</span>
+          <p>Did the learner identify the imaging finding, rank the diagnosis, and state the recommendation like a radiologist under oral-board pressure?</p>
         </div>
         <div className="detail-block">
-          <span className="meta-label">Calibration prompt</span>
-          <p>Did the learner demonstrate observation, synthesis, and management in a concise radiologist-style discussion?</p>
+          <span className="meta-label">Case answer frame</span>
+          <p>{activeCase.sampleAnswerFrame.join(' → ')}</p>
         </div>
       </div>
 
