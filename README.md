@@ -6,10 +6,22 @@ Web-first MVP scaffold for an ABR oral board practice product.
 
 - Learner dashboard
 - Case library with seeded radiology cases
-- Live oral session screen with 3-column exam layout
-- Debrief screen with structured scoring breakdown
-- Faculty review screen with governance controls
+- Live oral session screen with a typed runtime-backed session loop
+- Debrief screen driven by generated session output
+- Faculty review screen with transcript audit surface
 - Locked product framing where the AI counterpart is always a radiologist examiner
+- Local mock API layer that can be swapped for a real backend later
+
+## Runtime foundations added
+
+- Typed domain contracts for cases, sessions, transcript turns, phases, and debriefs
+- Mock backend/runtime path for:
+  - listing cases
+  - creating a session
+  - submitting learner turns
+  - advancing oral-board phases
+  - generating a structured debrief
+- Front-end wiring so the app is no longer a static UI shell
 
 ## Stack
 
@@ -27,12 +39,18 @@ npm run dev
 
 Open `http://localhost:5173`.
 
-## Build
+## Build and lint
 
 ```bash
 npm run build
+npm run lint
 ```
 
 ## Notes
 
-This is a front-end MVP scaffold with realistic seeded data and screen architecture. It is ready for the next pass that adds routing, persistent session state, API wiring, auth, and a real examiner/evaluator backend.
+This is still an MVP, but it now has a practical local runtime seam for the next pass:
+
+- replace the mock API with a real backend
+- persist sessions and transcripts
+- connect a real examiner/evaluator model
+- add routing, auth, and image viewer integration

@@ -1,109 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
-
-type ScreenKey = 'dashboard' | 'library' | 'session' | 'debrief' | 'faculty'
-
-type CaseSummary = {
-  id: string
-  code: string
-  title: string
-  subspecialty: string
-  modality: string
-  difficulty: 'Junior' | 'Standard' | 'Advanced'
-  duration: string
-  objective: string
-  vignette: string
-  findings: string[]
-  differential: string[]
-  management: string[]
-}
-
-type Turn = {
-  speaker: 'Examiner' | 'Learner'
-  text: string
-  phase: string
-}
-
-const cases: CaseSummary[] = [
-  {
-    id: '1',
-    code: 'NEU-017',
-    title: 'Acute posterior circulation stroke workup',
-    subspecialty: 'Neuroradiology',
-    modality: 'CTA Head/Neck',
-    difficulty: 'Standard',
-    duration: '12 min',
-    objective: 'Practice vascular localization, high-stakes communication, and thrombectomy triage.',
-    vignette: '65-year-old with sudden vertigo, diplopia, and gait instability. Review CTA and state the most likely diagnosis and immediate management priorities.',
-    findings: ['Occlusion of the left vertebral artery V4 segment', 'Diminished basilar tip opacification', 'No large parenchymal hemorrhage on non-contrast images'],
-    differential: ['Basilar thromboembolic disease', 'Severe vertebrobasilar atherosclerotic stenosis'],
-    management: ['Activate stroke team', 'Recommend urgent neurointerventional evaluation', 'Clarify hemorrhage exclusion before thrombolysis discussion'],
-  },
-  {
-    id: '2',
-    code: 'ABD-031',
-    title: 'Occult bowel ischemia on CT abdomen',
-    subspecialty: 'Abdominal Imaging',
-    modality: 'CT Abdomen/Pelvis',
-    difficulty: 'Advanced',
-    duration: '14 min',
-    objective: 'Identify subtle ischemic signs and defend operative urgency.',
-    vignette: '72-year-old with atrial fibrillation, pain out of proportion, and rising lactate. Interpret the contrast-enhanced CT and prioritize next steps.',
-    findings: ['Segmental hypoenhancement of mid-small bowel', 'Mesenteric edema with trace free fluid', 'Abrupt SMA branch cutoff'],
-    differential: ['Acute mesenteric ischemia', 'Closed loop obstruction with vascular compromise'],
-    management: ['Urgent surgical consultation', 'Communicate bowel threat explicitly', 'Recommend CTA review and anticoagulation discussion in context'],
-  },
-  {
-    id: '3',
-    code: 'MSK-008',
-    title: 'Aggressive distal femur lesion',
-    subspecialty: 'MSK',
-    modality: 'MRI Knee',
-    difficulty: 'Standard',
-    duration: '10 min',
-    objective: 'Structure malignant bone tumor differential and staging recommendations.',
-    vignette: '18-year-old with progressive knee pain and palpable mass. Review MRI and describe the lesion, differential, and staging workup.',
-    findings: ['Metaphyseal marrow replacing lesion in distal femur', 'Large soft tissue component', 'Periosteal reaction with cortical breakthrough'],
-    differential: ['Osteosarcoma', 'Ewing sarcoma'],
-    management: ['Recommend dedicated radiographs and chest CT', 'Advise orthopedic oncology referral', 'Avoid unplanned biopsy pathway'],
-  },
-]
-
-const transcript: Turn[] = [
-  {
-    speaker: 'Examiner',
-    phase: 'Interpretation',
-    text: 'You are the on-call radiology candidate. Walk me through the key CTA findings and start with what is immediately actionable.',
-  },
-  {
-    speaker: 'Learner',
-    phase: 'Interpretation',
-    text: 'There is poor opacification of the distal left vertebral artery extending into the vertebrobasilar junction, concerning for acute thromboembolic occlusion in the posterior circulation.',
-  },
-  {
-    speaker: 'Examiner',
-    phase: 'Differential',
-    text: 'Be more specific. What are you seeing at the basilar tip, and how does that change urgency?',
-  },
-  {
-    speaker: 'Learner',
-    phase: 'Management',
-    text: 'Basilar tip flow is attenuated, so this is potentially evolving basilar ischemia. I would urgently communicate this to the stroke team and neurointerventional service.',
-  },
-  {
-    speaker: 'Examiner',
-    phase: 'Management',
-    text: 'Good. Before you call, what critical exclusion do you need from the non-contrast series?',
-  },
-]
-
-const scoreBreakdown = [
-  { label: 'Detection', score: 4.5, note: 'Localized the culprit vascular lesion quickly.' },
-  { label: 'Description', score: 4.1, note: 'Used crisp, board-style language.' },
-  { label: 'Differential', score: 3.8, note: 'Could rank competing etiologies more explicitly.' },
-  { label: 'Management', score: 4.7, note: 'Communicated urgency and escalation well.' },
-  { label: 'Communication', score: 4.2, note: 'Strong structure under pressure.' },
-]
+import type { CaseSummary, ScreenKey, SessionEnvelope } from './domain/types'
+import { createSession, getActiveSession, listCases, resetSession, submitTurn } from './runtime/api'
 
 const weakAreas = [
   'Chest emergency imaging',
@@ -117,8 +15,83 @@ const assignedCases = [
 ]
 
 function App() {
-  const activeCase = cases[0]
   const [screen, setScreen] = useState<ScreenKey>('dashboard')
+  const [cases, setCases] = useState<CaseSummary[]>([])
+  const [selectedCaseId, setSelectedCaseId] = useState<string>('')
+  const [sessionEnvelope, setSessionEnvelope] = useState<SessionEnvelope | null>(null)
+  const [draftResponse, setDraftResponse] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function hydrate() {
+      try {
+        const [items, active] = await Promise.all([listCases(), getActiveSession()])
+        setCases(items)
+        setSelectedCaseId(active?.caseItem.id ?? items[0]?.id ?? '')
+        setSessionEnvelope(active)
+        if (active?.session.status === 'completed') setScreen('debrief')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load runtime state')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    void hydrate()
+  }, [])
+
+  const activeCase = useMemo(
+    () => cases.find((item) => item.id === selectedCaseId) ?? cases[0] ?? null,
+    [cases, selectedCaseId],
+  )
+
+  const runtimeCase = sessionEnvelope?.caseItem ?? activeCase
+  const transcript = sessionEnvelope?.session.transcript ?? []
+
+  async function handleStart(caseId: string) {
+    try {
+      setBusy(true)
+      setError(null)
+      const nextSession = await createSession({ caseId, candidateName: 'KB Resident' })
+      setSessionEnvelope(nextSession)
+      setSelectedCaseId(caseId)
+      setDraftResponse('')
+      setScreen('session')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to start session')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleSubmit() {
+    if (!sessionEnvelope || !draftResponse.trim()) return
+    try {
+      setBusy(true)
+      setError(null)
+      const nextSession = await submitTurn({ sessionId: sessionEnvelope.session.id, response: draftResponse.trim() })
+      setSessionEnvelope(nextSession)
+      setDraftResponse('')
+      setScreen(nextSession.session.status === 'completed' ? 'debrief' : 'session')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to submit turn')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleReset() {
+    await resetSession()
+    setSessionEnvelope(null)
+    setDraftResponse('')
+    setScreen('dashboard')
+  }
+
+  if (loading || !activeCase) {
+    return <div className="loading-shell">Loading ABR runtime...</div>
+  }
 
   return (
     <div className="shell">
@@ -126,7 +99,7 @@ function App() {
         <div>
           <p className="eyebrow">ABR Oral Board AI</p>
           <h1>Radiologist examiner training, not chatbot cosplay.</h1>
-          <p className="muted">Web-first MVP with learner flow, case runtime scaffolding, and faculty review surfaces.</p>
+          <p className="muted">Now backed by a typed session runtime, mock API layer, and live text-first simulation loop.</p>
         </div>
 
         <nav className="nav">
@@ -137,56 +110,54 @@ function App() {
             ['debrief', 'Debrief'],
             ['faculty', 'Faculty review'],
           ].map(([key, label]) => (
-            <button
-              key={key}
-              className={screen === key ? 'nav-item active' : 'nav-item'}
-              onClick={() => setScreen(key as ScreenKey)}
-            >
+            <button key={key} className={screen === key ? 'nav-item active' : 'nav-item'} onClick={() => setScreen(key as ScreenKey)}>
               {label}
             </button>
           ))}
         </nav>
 
         <div className="sidebar-card">
-          <span className="status-dot" />
-          AI role locked: <strong>radiologist examiner</strong>
+          <div className="status-line"><span className="status-dot" />Runtime {sessionEnvelope ? sessionEnvelope.session.status.replace('_', ' ') : 'ready'}</div>
+          <strong>{sessionEnvelope ? `${sessionEnvelope.session.candidateName} · ${sessionEnvelope.caseItem.code}` : 'No active session'}</strong>
+          <p className="muted small-copy">AI role locked: radiologist examiner</p>
         </div>
       </aside>
 
       <main className="main">
-        <Header />
-        {screen === 'dashboard' && <Dashboard activeCase={activeCase} />}
-        {screen === 'library' && <CaseLibrary activeCase={activeCase} />}
-        {screen === 'session' && <LiveSession activeCase={activeCase} />}
-        {screen === 'debrief' && <Debrief activeCase={activeCase} />}
-        {screen === 'faculty' && <FacultyReview activeCase={activeCase} />}
+        <Header sessionEnvelope={sessionEnvelope} />
+        {error && <div className="error-banner">{error}</div>}
+        {screen === 'dashboard' && <Dashboard activeCase={activeCase} onStart={handleStart} busy={busy} />}
+        {screen === 'library' && <CaseLibrary activeCaseId={selectedCaseId} cases={cases} onSelect={setSelectedCaseId} onStart={handleStart} busy={busy} />}
+        {screen === 'session' && <LiveSession activeCase={runtimeCase ?? activeCase} sessionEnvelope={sessionEnvelope} draftResponse={draftResponse} onDraftChange={setDraftResponse} onSubmit={handleSubmit} onReset={handleReset} busy={busy} transcriptCount={transcript.length} />}
+        {screen === 'debrief' && <Debrief activeCase={runtimeCase ?? activeCase} sessionEnvelope={sessionEnvelope} onRestart={handleReset} />}
+        {screen === 'faculty' && <FacultyReview activeCase={runtimeCase ?? activeCase} sessionEnvelope={sessionEnvelope} />}
       </main>
     </div>
   )
 }
 
-function Header() {
+function Header({ sessionEnvelope }: { sessionEnvelope: SessionEnvelope | null }) {
   return (
     <header className="topbar">
       <div>
         <p className="eyebrow">MVP status</p>
-        <h2>Core learner journey scaffolded</h2>
+        <h2>{sessionEnvelope ? 'Live oral simulation active' : 'Core learner journey scaffolded'}</h2>
       </div>
       <div className="topbar-meta">
         <div>
           <span className="meta-label">Current phase</span>
-          <strong>Phase 2, text-first simulation</strong>
+          <strong>{sessionEnvelope ? sessionEnvelope.session.phase : 'Phase 2, text-first simulation'}</strong>
         </div>
         <div>
           <span className="meta-label">Pilot stance</span>
-          <strong>3 seeded cases, strict examiner guardrails</strong>
+          <strong>{sessionEnvelope ? 'Typed local runtime path online' : '3 seeded cases, strict examiner guardrails'}</strong>
         </div>
       </div>
     </header>
   )
 }
 
-function Dashboard({ activeCase }: { activeCase: CaseSummary }) {
+function Dashboard({ activeCase, onStart, busy }: { activeCase: CaseSummary; onStart: (caseId: string) => Promise<void>; busy: boolean }) {
   return (
     <section className="screen-grid two-up">
       <div className="panel hero-panel">
@@ -198,16 +169,12 @@ function Dashboard({ activeCase }: { activeCase: CaseSummary }) {
           <span className="pill">{activeCase.modality}</span>
           <span className="pill">{activeCase.duration}</span>
         </div>
-        <button className="primary-btn">Start oral simulation</button>
+        <button className="primary-btn" disabled={busy} onClick={() => void onStart(activeCase.id)}>{busy ? 'Launching...' : 'Start oral simulation'}</button>
       </div>
 
       <div className="panel">
         <p className="eyebrow">Weak areas</p>
-        <ul className="clean-list">
-          {weakAreas.map((area) => (
-            <li key={area}>{area}</li>
-          ))}
-        </ul>
+        <ul className="clean-list">{weakAreas.map((area) => <li key={area}>{area}</li>)}</ul>
       </div>
 
       <div className="panel">
@@ -224,24 +191,18 @@ function Dashboard({ activeCase }: { activeCase: CaseSummary }) {
       </div>
 
       <div className="panel">
-        <p className="eyebrow">Recent performance</p>
-        <div className="trend-card">
-          <div>
-            <span className="metric">84%</span>
-            <p className="muted">Average last 5 sessions</p>
-          </div>
-          <div className="trend-bars">
-            {[72, 76, 81, 85, 84].map((value) => (
-              <span key={value} style={{ height: `${value}px` }} />
-            ))}
-          </div>
+        <p className="eyebrow">Runtime foundations shipped</p>
+        <div className="score-list compact-grid">
+          <div className="detail-block"><strong>Typed contracts</strong><p className="muted">Case, session, transcript, debrief models.</p></div>
+          <div className="detail-block"><strong>Mock API</strong><p className="muted">Async local runtime, ready to swap for real backend.</p></div>
+          <div className="detail-block"><strong>Live session loop</strong><p className="muted">Start, submit turns, progress phases, generate debrief.</p></div>
         </div>
       </div>
     </section>
   )
 }
 
-function CaseLibrary({ activeCase }: { activeCase: CaseSummary }) {
+function CaseLibrary({ activeCaseId, cases, onSelect, onStart, busy }: { activeCaseId: string; cases: CaseSummary[]; onSelect: (caseId: string) => void; onStart: (caseId: string) => Promise<void>; busy: boolean }) {
   return (
     <section className="screen-grid">
       <div className="panel filter-bar">
@@ -249,12 +210,12 @@ function CaseLibrary({ activeCase }: { activeCase: CaseSummary }) {
         <span className="pill">Chest</span>
         <span className="pill">Abdomen</span>
         <span className="pill">MSK</span>
-        <span className="pill subtle">Duration under 15 min</span>
+        <span className="pill subtle">Runtime-backed case launch</span>
       </div>
 
       <div className="case-list">
         {cases.map((item) => (
-          <article key={item.id} className={item.id === activeCase.id ? 'panel case-card active-case' : 'panel case-card'}>
+          <article key={item.id} className={item.id === activeCaseId ? 'panel case-card active-case' : 'panel case-card'}>
             <div className="case-card-head">
               <div>
                 <p className="eyebrow">{item.code}</p>
@@ -270,8 +231,8 @@ function CaseLibrary({ activeCase }: { activeCase: CaseSummary }) {
             </div>
             <p className="muted">{item.vignette}</p>
             <div className="split-actions">
-              <button className="secondary-btn">Preview setup</button>
-              <button className="primary-btn">Launch</button>
+              <button className="secondary-btn" onClick={() => onSelect(item.id)}>Preview setup</button>
+              <button className="primary-btn" disabled={busy} onClick={() => void onStart(item.id)}>{busy ? 'Starting...' : 'Launch'}</button>
             </div>
           </article>
         ))}
@@ -280,7 +241,7 @@ function CaseLibrary({ activeCase }: { activeCase: CaseSummary }) {
   )
 }
 
-function LiveSession({ activeCase }: { activeCase: CaseSummary }) {
+function LiveSession({ activeCase, sessionEnvelope, draftResponse, onDraftChange, onSubmit, onReset, busy, transcriptCount }: { activeCase: CaseSummary; sessionEnvelope: SessionEnvelope | null; draftResponse: string; onDraftChange: (value: string) => void; onSubmit: () => Promise<void>; onReset: () => Promise<void>; busy: boolean; transcriptCount: number }) {
   return (
     <section className="live-layout">
       <div className="panel column-panel">
@@ -289,7 +250,7 @@ function LiveSession({ activeCase }: { activeCase: CaseSummary }) {
             <p className="eyebrow">{activeCase.code}</p>
             <h3>{activeCase.title}</h3>
           </div>
-          <span className="timer">07:42</span>
+          <span className="timer">{String(transcriptCount).padStart(2, '0')} turns</span>
         </div>
         <div className="detail-block">
           <span className="meta-label">Candidate vignette</span>
@@ -298,33 +259,40 @@ function LiveSession({ activeCase }: { activeCase: CaseSummary }) {
         <div className="detail-block">
           <span className="meta-label">Revealed facts</span>
           <ul className="clean-list compact">
-            {activeCase.findings.map((finding) => (
-              <li key={finding}>{finding}</li>
-            ))}
+            {(sessionEnvelope?.session.revealedFacts ?? activeCase.findings.slice(0, 1)).map((finding) => <li key={finding}>{finding}</li>)}
           </ul>
         </div>
         <div className="session-controls">
-          <span className="pill">Text fallback active</span>
-          <span className="pill subtle">Phase: management</span>
+          <span className="pill">Text-first runtime active</span>
+          <span className="pill subtle">Phase: {sessionEnvelope?.session.phase ?? 'opening'}</span>
         </div>
       </div>
 
       <div className="panel viewer-panel">
         <div className="viewer-header">
           <div>
-            <p className="eyebrow">Image viewer</p>
-            <h3>CTA series stack</h3>
+            <p className="eyebrow">Runtime path</p>
+            <h3>Case and session contracts online</h3>
           </div>
           <div className="pill-row">
-            <span className="pill subtle">Axial</span>
-            <span className="pill subtle">MIP</span>
+            <span className="pill subtle">Mock API</span>
+            <span className="pill subtle">Swappable backend</span>
           </div>
         </div>
         <div className="viewer-canvas">
-          <div className="scan-frame" />
+          <div className="scan-frame runtime-frame">
+            <div>
+              <span className="meta-label">Hidden diagnosis</span>
+              <p>{activeCase.hiddenDiagnosis}</p>
+            </div>
+            <div>
+              <span className="meta-label">Teaching point</span>
+              <p>{activeCase.keyTeachingPoint}</p>
+            </div>
+          </div>
           <div className="viewer-overlay">
-            <span>Slice 84 / 126</span>
-            <span>Window 70 / Level 35</span>
+            <span>{activeCase.modality}</span>
+            <span>{activeCase.subspecialty}</span>
           </div>
         </div>
       </div>
@@ -335,22 +303,22 @@ function LiveSession({ activeCase }: { activeCase: CaseSummary }) {
             <p className="eyebrow">Examiner transcript</p>
             <h3>Strict radiologist examiner</h3>
           </div>
-          <span className="status-chip">Connected</span>
+          <span className="status-chip">{sessionEnvelope ? 'Connected' : 'Idle'}</span>
         </div>
         <div className="transcript-list">
-          {transcript.map((turn, index) => (
-            <div key={`${turn.speaker}-${index}`} className={turn.speaker === 'Examiner' ? 'bubble examiner' : 'bubble learner'}>
+          {(sessionEnvelope?.session.transcript ?? []).map((turn) => (
+            <div key={turn.id} className={turn.speaker === 'Examiner' ? 'bubble examiner' : turn.speaker === 'Learner' ? 'bubble learner' : 'bubble system'}>
               <span className="meta-label">{turn.speaker} · {turn.phase}</span>
               <p>{turn.text}</p>
             </div>
           ))}
         </div>
         <div className="input-card">
-          <span className="meta-label">Text fallback submission</span>
-          <p className="input-shell">No intracranial hemorrhage is visible, so I would escalate immediately for reperfusion pathway consideration...</p>
+          <span className="meta-label">Text submission</span>
+          <textarea className="text-input" value={draftResponse} onChange={(event) => onDraftChange(event.target.value)} placeholder={sessionEnvelope ? 'Enter your board-style response here...' : 'Start a session from the dashboard or library first.'} disabled={!sessionEnvelope || sessionEnvelope.session.status === 'completed' || busy} />
           <div className="split-actions">
-            <button className="secondary-btn">Pause practice</button>
-            <button className="primary-btn">Submit turn</button>
+            <button className="secondary-btn" onClick={() => void onReset()}>Reset practice</button>
+            <button className="primary-btn" disabled={!sessionEnvelope || !draftResponse.trim() || busy} onClick={() => void onSubmit()}>{busy ? 'Submitting...' : 'Submit turn'}</button>
           </div>
         </div>
       </div>
@@ -358,31 +326,31 @@ function LiveSession({ activeCase }: { activeCase: CaseSummary }) {
   )
 }
 
-function Debrief({ activeCase }: { activeCase: CaseSummary }) {
+function Debrief({ activeCase, sessionEnvelope, onRestart }: { activeCase: CaseSummary; sessionEnvelope: SessionEnvelope | null; onRestart: () => Promise<void> }) {
+  const debrief = sessionEnvelope?.session.debrief
   return (
     <section className="screen-grid two-up">
       <div className="panel hero-panel success">
         <p className="eyebrow">Result</p>
-        <h3>Pass, with targeted differential coaching</h3>
-        <p>You identified posterior circulation occlusion quickly and escalated appropriately. The biggest gap was explicitly ranking alternatives before management discussion.</p>
+        <h3>{debrief ? `${debrief.disposition}, with targeted coaching` : 'No completed session yet'}</h3>
+        <p>{debrief?.summary ?? 'Complete a live simulation to generate a debrief.'}</p>
         <div className="pill-row">
-          <span className="pill">Overall score 84</span>
-          <span className="pill">Critical misses 0</span>
-          <span className="pill">Duration 11m 52s</span>
+          <span className="pill">Overall score {debrief?.overallScore ?? '--'}</span>
+          <span className="pill">Critical misses {debrief?.criticalMisses ?? '--'}</span>
+          <span className="pill">Case {activeCase.code}</span>
         </div>
+        <button className="secondary-btn" onClick={() => void onRestart()}>Clear and restart</button>
       </div>
 
       <div className="panel">
         <p className="eyebrow">Strong candidate answer</p>
-        <p>
-          This CTA demonstrates acute posterior circulation thromboembolic disease with distal left vertebral artery occlusion and attenuated basilar tip flow. I would report this as a stroke-team critical result, confirm absence of hemorrhage on the companion non-contrast series, and recommend immediate neurointerventional evaluation.
-        </p>
+        <p>{debrief?.strongAnswer ?? 'Awaiting completed session output.'}</p>
       </div>
 
       <div className="panel">
         <p className="eyebrow">Competency breakdown</p>
         <div className="score-list">
-          {scoreBreakdown.map((score) => (
+          {(debrief?.scoreBreakdown ?? []).map((score) => (
             <div key={score.label} className="score-row">
               <div>
                 <strong>{score.label}</strong>
@@ -396,37 +364,28 @@ function Debrief({ activeCase }: { activeCase: CaseSummary }) {
 
       <div className="panel">
         <p className="eyebrow">Next steps</p>
-        <ul className="clean-list compact">
-          <li>Do one abdomen vascular emergency case this week.</li>
-          <li>Practice ranking top 2 differentials before management in strict mode.</li>
-          <li>Review vertebrobasilar thrombectomy inclusion pitfalls.</li>
-        </ul>
+        <ul className="clean-list compact">{(debrief?.nextSteps ?? []).map((item) => <li key={item}>{item}</li>)}</ul>
         <div className="detail-block">
           <span className="meta-label">Recommended follow-up case</span>
-          <p>{activeCase.title} → pair with ABD-031 for urgency contrast.</p>
+          <p>{activeCase.title}</p>
         </div>
       </div>
     </section>
   )
 }
 
-function FacultyReview({ activeCase }: { activeCase: CaseSummary }) {
+function FacultyReview({ activeCase, sessionEnvelope }: { activeCase: CaseSummary; sessionEnvelope: SessionEnvelope | null }) {
+  const debrief = sessionEnvelope?.session.debrief
   return (
     <section className="screen-grid two-up">
       <div className="panel">
         <p className="eyebrow">Session oversight</p>
-        <h3>KB Resident · PGY-5 · {activeCase.code}</h3>
-        <div className="score-row">
-          <span className="meta-label">AI disposition</span>
-          <strong>Pass</strong>
-        </div>
-        <div className="score-row">
-          <span className="meta-label">Faculty override</span>
-          <strong>None applied</strong>
-        </div>
+        <h3>{sessionEnvelope?.session.candidateName ?? 'KB Resident'} · PGY-5 · {activeCase.code}</h3>
+        <div className="score-row"><span className="meta-label">AI disposition</span><strong>{debrief?.disposition ?? 'Pending'}</strong></div>
+        <div className="score-row"><span className="meta-label">Session status</span><strong>{sessionEnvelope?.session.status ?? 'idle'}</strong></div>
         <div className="detail-block">
           <span className="meta-label">Governance notes</span>
-          <p>Examiner stayed in radiologist-examiner role for all logged turns. No tutoring language detected.</p>
+          <p>Examiner stays in role, advances through oral-board phases, and generates structured debrief output without tutoring drift.</p>
         </div>
       </div>
 
@@ -439,15 +398,15 @@ function FacultyReview({ activeCase }: { activeCase: CaseSummary }) {
         </div>
         <div className="detail-block">
           <span className="meta-label">Calibration prompt</span>
-          <p>Did the learner explicitly connect basilar attenuation to urgent escalation before being led there by the examiner?</p>
+          <p>Did the learner clearly name the leading diagnosis, defend it briefly, and close with an explicit escalation recommendation?</p>
         </div>
       </div>
 
       <div className="panel span-two">
         <p className="eyebrow">Transcript audit</p>
         <div className="transcript-list faculty-transcript">
-          {transcript.map((turn, index) => (
-            <div key={`${turn.speaker}-faculty-${index}`} className={turn.speaker === 'Examiner' ? 'bubble examiner' : 'bubble learner'}>
+          {(sessionEnvelope?.session.transcript ?? []).map((turn) => (
+            <div key={`faculty-${turn.id}`} className={turn.speaker === 'Examiner' ? 'bubble examiner' : turn.speaker === 'Learner' ? 'bubble learner' : 'bubble system'}>
               <span className="meta-label">{turn.speaker} · {turn.phase}</span>
               <p>{turn.text}</p>
             </div>
